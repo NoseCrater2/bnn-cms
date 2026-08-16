@@ -13,6 +13,12 @@ echo "Ejecutando migraciones..."
 
 php artisan migrate --seed --force
 
+echo "Configurando storage link..."
+
+if [ ! -L public/storage ]; then
+    php artisan storage:link
+fi
+
 echo "Iniciando Laravel..."
 
 exec "$@"
