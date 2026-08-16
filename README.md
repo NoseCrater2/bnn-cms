@@ -383,8 +383,7 @@ node:
 Para Desarrollo:
 
 ``` bash
-
-docker compose run --rm --service-ports node npm run dev -- --host 0.0.0.0
+docker compose run --rm --service-ports node sh -c "npm install && npm run dev -- --host 0.0.0.0"
 ```
 
 Laravel necesita que exista:
