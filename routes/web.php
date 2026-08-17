@@ -34,6 +34,7 @@ Route::view('/', 'welcome')->name('home');
 Route::middleware(['auth', 'verified'])->group(function () {
     Route::view('dashboard', 'dashboard')->name('dashboard');
     Route::get('articulos', [ArticleController::class, 'index'])->name('public.articles');
+    Route::get('articulos/{slug}', [ArticleController::class, 'show'])->name('public.articles.show');
 });
 
 require __DIR__.'/settings.php';

@@ -32,6 +32,14 @@ new class extends Component {
                 ->paginate(5),
         ];
     }
+
+    public function goToDetails(string $slug){
+        return $this->redirectRoute(
+            'public.articles.show',
+            parameters: ['slug' => $slug],
+            navigate: true
+        );
+    }
 };
 ?>
 
@@ -60,7 +68,7 @@ new class extends Component {
                      <flux:spacer />
                     <div class="space-y-2 flex">
 
-                        <flux:button variant="primary" class="w-full">Leer</flux:button>
+                        <flux:button  wire:click="goToDetails('{{$article->slug}}')" variant="primary" class="w-full">Leer</flux:button>
                     </div>
                 </flux:card>
             @endforeach
