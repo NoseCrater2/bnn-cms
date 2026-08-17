@@ -149,6 +149,15 @@ Abre:
 http://localhost:8080
 ```
 
+El proyecto ya cuenta con un usuario administrador:
+``` text
+test@example.com
+```
+con contraseña:
+``` text
+password
+```
+
 ## Verificar los contenedores
 
 Ejecuta:
