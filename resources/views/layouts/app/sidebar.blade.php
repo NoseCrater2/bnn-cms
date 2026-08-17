@@ -12,23 +12,42 @@
 
             <flux:sidebar.nav>
                 <flux:sidebar.group :heading="__('Platform')" class="grid">
-                    <flux:sidebar.item icon="home" :href="route('dashboard')" :current="request()->routeIs('dashboard')" wire:navigate>
-                        {{ __('Lista de productos') }}
+                    <flux:sidebar.item icon="home" :href="route('admin.dashboard')" :current="request()->routeIs('admin.dashboard')" wire:navigate>
+                        {{ __('Dashboard') }}
                     </flux:sidebar.item>
+                    @if (auth()->user()->role->value == 'admin')
+
+                        <flux:sidebar.item icon="users" :href="route('admin.users.index')" :current="request()->routeIs('admin.users.*')" wire:navigate>
+                            {{ __('Usuarios') }}
+                        </flux:sidebar.item>
+                        <flux:sidebar.item
+                            icon="document-text"
+                            :href="route('admin.articles.index')"
+                            :current="request()->routeIs('admin.articles.*')"
+                        >
+                            Artículos
+                        </flux:sidebar.item>
+
+                        <flux:sidebar.item
+                            icon="tag"
+                            :href="route('admin.categories.index')"
+                            :current="request()->routeIs('admin.categories.*')"
+                        >
+                            Categorías
+                        </flux:sidebar.item>
+                    @else
+                    <flux:sidebar.item
+                        icon="document-text"
+                        :href="route('public.articles')"
+                        :current="request()->routeIs('public.articles')"
+                    >
+                        Artículos
+                    </flux:sidebar.item>
+                    @endif
                 </flux:sidebar.group>
             </flux:sidebar.nav>
 
             <flux:spacer />
-
-            <flux:sidebar.nav>
-                <flux:sidebar.item icon="folder-git-2" href="https://github.com/laravel/livewire-starter-kit" target="_blank">
-                    {{ __('Repository') }}
-                </flux:sidebar.item>
-
-                <flux:sidebar.item icon="book-open-text" href="https://laravel.com/docs/starter-kits#livewire" target="_blank">
-                    {{ __('Documentation') }}
-                </flux:sidebar.item>
-            </flux:sidebar.nav>
 
             <x-desktop-user-menu class="hidden lg:block" :name="auth()->user()->name" />
         </flux:sidebar>
@@ -55,7 +74,10 @@
                                 />
 
                                 <div class="grid flex-1 text-start text-sm leading-tight">
-                                    <flux:heading class="truncate">{{ auth()->user()->name }}</flux:heading>
+                                    <flux:heading class="truncate">
+                                        {{ auth()->user()->name }}
+                                        <flux:badge color="lime">{{ auth()->user()->role }}</flux:badge>
+                                    </flux:heading>
                                     <flux:text class="truncate">{{ auth()->user()->email }}</flux:text>
                                 </div>
                             </div>

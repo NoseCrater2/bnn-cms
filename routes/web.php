@@ -10,7 +10,7 @@ Route::middleware(['auth', 'admin'])
     ->name('admin.')
     ->group(function () {
 
-        Route::view('/', 'admin.dashboard')
+        Route::view('dashboard', 'dashboard')
             ->name('dashboard');
 
         Route::resource(
