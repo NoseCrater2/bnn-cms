@@ -11,7 +11,12 @@ done
 
 echo "Ejecutando migraciones..."
 
-php artisan migrate --seed --force
+php artisan migrate --force
+
+echo "Optimizando Laravel para el entorno local..."
+
+composer install --no-interaction --prefer-dist --optimize-autoloader
+php artisan optimize
 
 echo "Iniciando Laravel..."
 

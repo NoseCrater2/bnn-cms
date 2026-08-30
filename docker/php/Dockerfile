@@ -38,6 +38,8 @@ RUN composer install \
 RUN chown -R www-data:www-data \
     storage \
     bootstrap/cache
+
+COPY docker/php/local.ini /usr/local/etc/php/conf.d/99-local-performance.ini
 COPY docker/php/entrypoint.sh /usr/local/bin/entrypoint.sh
 
 RUN chmod +x /usr/local/bin/entrypoint.sh

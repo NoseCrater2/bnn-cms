@@ -113,6 +113,9 @@ services:
 
     volumes:
       - .:/var/www/html
+      - php_vendor:/var/www/html/vendor
+      - laravel_framework:/var/www/html/storage/framework
+      - laravel_cache:/var/www/html/bootstrap/cache
 
     depends_on:
       mysql-write:
@@ -169,3 +172,6 @@ volumes:
   mysql_write_data:
   mysql_read_data:
   node_modules:
+  php_vendor:
+  laravel_framework:
+  laravel_cache:
