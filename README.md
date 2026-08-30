@@ -391,6 +391,11 @@ node:
 
 Para Desarrollo:
 
+Ahora las migraciones deberán ejecutarse manualmente para obtener el primer usuario administrador
+``` bash
+docker compose run php artisan db:seed
+```
+
 ``` bash
 docker compose run --rm --service-ports node sh -c "npm install && npm run dev -- --host 0.0.0.0"
 ```
