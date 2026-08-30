@@ -1,10 +1,11 @@
 <?php
 
 use App\Models\Category;
+use App\Actions\Categories\CreateCategory;
+use App\Actions\Categories\UpdateCategory;
 use \Livewire\WithPagination;
 use Livewire\Component;
 use Livewire\Attributes\Computed;
-use Illuminate\Support\Str;
 use Flux\Flux;
 use App\Enums\UserRole;
 
@@ -42,14 +43,14 @@ new class extends Component
         Flux::modal('category-modal')->show();
     }
 
-    public function saveCategory(): void {
-        $this->validate(['categoryData.name' => ['required', 'string', 'max:255']]);
-        $this->categoryData['slug'] = $this->uniqueSlug($this->categoryData['name']);
+    public function saveCategory(CreateCategory $createCategory, UpdateCategory $updateCategory): void {
+        $validated = $this->validate(['categoryData.name' => ['required', 'string', 'max:255']])['categoryData'];
+
         if ($this->editingCategoryId) {
-            Category::findOrFail($this->editingCategoryId)->update($this->categoryData);
+            $updateCategory->handle(Category::findOrFail($this->editingCategoryId), $validated);
             $message = 'Categoría actualizada correctamente.';
         } else {
-            Category::create($this->categoryData);
+            $createCategory->handle($validated);
             $message = 'Categoría creada correctamente.';
         }
         Flux::modal('category-modal')->close();
@@ -68,16 +69,6 @@ new class extends Component
         $category->delete();
         $this->resetPage();
         Flux::toast(variant: 'success', text: 'Categoría eliminada correctamente.');
-    }
-
-    private function uniqueSlug(string $name): string {
-        $base = Str::slug($name);
-        $slug = $base;
-        $suffix = 2;
-        while (Category::where('slug', $slug)->when($this->editingCategoryId, fn ($query) => $query->whereKeyNot($this->editingCategoryId))->exists()) {
-            $slug = $base.'-'.$suffix++;
-        }
-        return $slug;
     }
 
     private function resetCategoryForm(): void {

@@ -2,12 +2,13 @@
 
 use App\Models\Article;
 use App\Models\Category;
+use App\Actions\Articles\CreateArticle;
+use App\Actions\Articles\UpdateArticle;
 use \Livewire\WithPagination;
 use Livewire\Component;
 use Livewire\Attributes\Computed;
 use Flux\Flux;
 use Illuminate\Database\Eloquent\Collection;
-use Illuminate\Support\Str;
 use Livewire\Attributes\Validate;
 use Livewire\WithFileUploads;
 use Illuminate\Support\Facades\Storage;
@@ -43,13 +44,6 @@ new class extends Component
         $this->image = null;
     }
 
-    public function saveImage()
-    {
-       if ($this->image) {
-           $this->articleData['featured_image'] = $this->image->store('articles', 'public');
-       }
-    }
-
     public function mount() {
         $this->categories = Category::all();
         $this->articleData['category_id'] = $this->categories->first()?->id;
@@ -79,34 +73,23 @@ new class extends Component
         Flux::modal('article-modal')->show();
     }
 
-    public function saveArticle(): void {
-        $this->validate([
+    public function saveArticle(CreateArticle $createArticle, UpdateArticle $updateArticle): void {
+        $validated = $this->validate([
             'articleData.title' => ['required', 'string', 'max:255'],
             'articleData.category_id' => ['required', 'integer', 'exists:categories,id'],
             'articleData.content' => ['required', 'string'],
             'image' => ['nullable', 'image', 'max:1024'],
-        ]);
+        ])['articleData'];
 
         $article = $this->editingArticleId
             ? $this->manageableArticles()->findOrFail($this->editingArticleId)
             : null;
-        $oldImage = $this->articleData['featured_image'];
-        $this->saveImage();
-        $this->articleData['slug'] = $this->uniqueSlug($this->articleData['title']);
-        $this->articleData['published_at'] = $this->isPublished
-            ? ($this->articleData['published_at'] ?: now())
-            : null;
 
         if ($article) {
-            $this->articleData['user_id'] = $article->user_id;
-            $article->update($this->articleData);
-            if ($this->image && $oldImage && $oldImage !== $this->articleData['featured_image']) {
-                Storage::disk('public')->delete($oldImage);
-            }
+            $updateArticle->handle($article, $validated, $this->image, $this->isPublished);
             $message = 'Artículo actualizado correctamente.';
         } else {
-            $this->articleData['user_id'] = auth()->id();
-            Article::create($this->articleData);
+            $createArticle->handle(auth()->user(), $validated, $this->image, $this->isPublished);
             $message = 'Artículo creado correctamente.';
         }
 
@@ -123,16 +106,6 @@ new class extends Component
         $article->delete();
         $this->resetPage();
         Flux::toast(variant: 'success', text: 'Artículo eliminado correctamente.');
-    }
-
-    private function uniqueSlug(string $title): string {
-        $base = Str::slug($title);
-        $slug = $base;
-        $suffix = 2;
-        while (Article::where('slug', $slug)->when($this->editingArticleId, fn ($query) => $query->whereKeyNot($this->editingArticleId))->exists()) {
-            $slug = $base.'-'.$suffix++;
-        }
-        return $slug;
     }
 
     function resetForm() {

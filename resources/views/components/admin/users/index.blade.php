@@ -1,6 +1,8 @@
 <?php
 
 use App\Enums\UserRole;
+use App\Actions\Users\CreateUser;
+use App\Actions\Users\UpdateUser;
 use App\Models\User;
 use Flux\Flux;
 use Illuminate\Validation\Rule;
@@ -44,7 +46,7 @@ new class extends Component
         Flux::modal('user-modal')->show();
     }
 
-    public function saveUser(): void
+    public function saveUser(CreateUser $createUser, UpdateUser $updateUser): void
     {
         $validated = $this->validate([
             'userData.name' => ['required', 'string', 'max:255'],
@@ -55,14 +57,10 @@ new class extends Component
 
         if ($this->editingUserId) {
             $user = User::findOrFail($this->editingUserId);
-            if ($validated['password'] === '') {
-                unset($validated['password']);
-            }
-            $user->update($validated);
+            $updateUser->handle($user, $validated);
             $message = 'Usuario actualizado correctamente.';
         } else {
-            $validated['email_verified_at'] = now();
-            User::create($validated);
+            $createUser->handle($validated);
             $message = 'Usuario creado correctamente.';
         }
 
