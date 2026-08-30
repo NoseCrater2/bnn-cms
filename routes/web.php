@@ -18,23 +18,22 @@ Route::middleware(['auth', 'admin'])
             UserController::class
         );
 
-        Route::resource(
-            'articles',
-            ArticleController::class
-        );
+    });
 
-        Route::resource(
-            'categories',
-            CategoryController::class
-        );
+Route::middleware(['auth', 'verified'])
+    ->prefix('admin')
+    ->name('admin.')
+    ->group(function () {
+        Route::get('articles', [ArticleController::class, 'index'])->name('articles.index');
+        Route::get('categories', [CategoryController::class, 'index'])->name('categories.index');
     });
 
 Route::view('/', 'welcome')->name('home');
 
 Route::middleware(['auth', 'verified'])->group(function () {
     Route::view('dashboard', 'dashboard')->name('dashboard');
-    Route::get('articulos', [ArticleController::class, 'index'])->name('public.articles');
-    Route::get('articulos/{slug}', [ArticleController::class, 'show'])->name('public.articles.show');
-});
 
+});
+Route::get('articulos', [ArticleController::class, 'index'])->name('public.articles');
+Route::get('articulos/{slug}', [ArticleController::class, 'show'])->name('public.articles.show');
 require __DIR__.'/settings.php';

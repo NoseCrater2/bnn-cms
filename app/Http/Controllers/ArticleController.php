@@ -2,7 +2,6 @@
 
 namespace App\Http\Controllers;
 
-use App\Enums\UserRole;
 use Illuminate\Http\Request;
 
 class ArticleController extends Controller
@@ -12,9 +11,10 @@ class ArticleController extends Controller
      */
     public function index()
     {
-        if(auth()->user()->role === UserRole::ADMIN){
-             return view('admin.articles');
+        if (request()->routeIs('admin.articles.*')) {
+            return view('admin.articles');
         }
+
         return view('articles');
     }
 

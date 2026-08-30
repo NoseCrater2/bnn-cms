@@ -10,6 +10,8 @@ use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Str;
 use Livewire\Attributes\Validate;
 use Livewire\WithFileUploads;
+use Illuminate\Support\Facades\Storage;
+use App\Enums\UserRole;
 
 new class extends Component
 {
@@ -18,7 +20,7 @@ new class extends Component
 
     public $sortBy = 'title';
     public $sortDirection = 'desc';
-    public $showUserModal = true;
+    public ?int $editingArticleId = null;
     public $isPublished = false;
     public $articleData = [
         'user_id' => null,
@@ -35,18 +37,22 @@ new class extends Component
     public $image;
     public function removeImage()
     {
-        $this->image->delete();
-        $this->articleData['featured_image'] = null;
+        if ($this->image) {
+            $this->image->delete();
+        }
         $this->image = null;
     }
 
     public function saveImage()
     {
-       $this->articleData['featured_image'] = $this->image->store('articles', 'public');
+       if ($this->image) {
+           $this->articleData['featured_image'] = $this->image->store('articles', 'public');
+       }
     }
 
     public function mount() {
         $this->categories = Category::all();
+        $this->articleData['category_id'] = $this->categories->first()?->id;
     }
 
     public function sort($column) {
@@ -58,24 +64,82 @@ new class extends Component
         }
     }
 
-    public function saveArticle() {
+    public function createArticle(): void {
+        $this->resetForm();
+        Flux::modal('article-modal')->show();
+    }
 
+    public function editArticle(int $id): void {
+        $article = $this->manageableArticles()->findOrFail($id);
+        $this->editingArticleId = $article->id;
+        $this->articleData = $article->only(['user_id', 'category_id', 'title', 'slug', 'content', 'featured_image', 'published_at']);
+        $this->isPublished = $article->published_at !== null;
+        $this->image = null;
+        $this->resetValidation();
+        Flux::modal('article-modal')->show();
+    }
+
+    public function saveArticle(): void {
+        $this->validate([
+            'articleData.title' => ['required', 'string', 'max:255'],
+            'articleData.category_id' => ['required', 'integer', 'exists:categories,id'],
+            'articleData.content' => ['required', 'string'],
+            'image' => ['nullable', 'image', 'max:1024'],
+        ]);
+
+        $article = $this->editingArticleId
+            ? $this->manageableArticles()->findOrFail($this->editingArticleId)
+            : null;
+        $oldImage = $this->articleData['featured_image'];
         $this->saveImage();
-        $this->articleData['slug'] = Str::slug($this->articleData['title']);
-        $this->articleData['user_id'] = auth()->id();
-        if($this->isPublished){
-             $this->articleData['published_at'] = now();
+        $this->articleData['slug'] = $this->uniqueSlug($this->articleData['title']);
+        $this->articleData['published_at'] = $this->isPublished
+            ? ($this->articleData['published_at'] ?: now())
+            : null;
+
+        if ($article) {
+            $this->articleData['user_id'] = $article->user_id;
+            $article->update($this->articleData);
+            if ($this->image && $oldImage && $oldImage !== $this->articleData['featured_image']) {
+                Storage::disk('public')->delete($oldImage);
+            }
+            $message = 'Artículo actualizado correctamente.';
+        } else {
+            $this->articleData['user_id'] = auth()->id();
+            Article::create($this->articleData);
+            $message = 'Artículo creado correctamente.';
         }
-        Article::create($this->articleData);
 
         Flux::modal('article-modal')->close();
+        Flux::toast(variant: 'success', text: $message);
         $this->resetForm();
     }
 
+    public function deleteArticle(int $id): void {
+        $article = $this->manageableArticles()->findOrFail($id);
+        if ($article->featured_image) {
+            Storage::disk('public')->delete($article->featured_image);
+        }
+        $article->delete();
+        $this->resetPage();
+        Flux::toast(variant: 'success', text: 'Artículo eliminado correctamente.');
+    }
+
+    private function uniqueSlug(string $title): string {
+        $base = Str::slug($title);
+        $slug = $base;
+        $suffix = 2;
+        while (Article::where('slug', $slug)->when($this->editingArticleId, fn ($query) => $query->whereKeyNot($this->editingArticleId))->exists()) {
+            $slug = $base.'-'.$suffix++;
+        }
+        return $slug;
+    }
+
     function resetForm() {
+        $this->editingArticleId = null;
         $this->articleData = [
             'user_id' => null,
-            'category_id' => null,
+            'category_id' => $this->categories->first()?->id,
             'title' => null,
             'slug' => null,
             'content' => null,
@@ -89,9 +153,17 @@ new class extends Component
     #[Computed]
     public function articles()
     {
-        return Article::query()
+        return $this->manageableArticles()->with(['category', 'user'])
             ->tap(fn ($query) => $this->sortBy ? $query->orderBy($this->sortBy, $this->sortDirection) : $query)
             ->paginate(5);
+    }
+
+    private function manageableArticles()
+    {
+        return Article::query()->when(
+            auth()->user()->role !== UserRole::ADMIN,
+            fn ($query) => $query->whereBelongsTo(auth()->user()),
+        );
     }
 };
 ?>
@@ -101,9 +173,7 @@ new class extends Component
     <flux:text class="mt-2 mb-6 text-base">Crea y edita articulos</flux:text>
 
     <div class="flex justify-end gap-4">
-        <flux:modal.trigger name="article-modal">
-            <flux:button>Nuevo artículo</flux:button>
-        </flux:modal.trigger>
+        <flux:button wire:click="createArticle">Nuevo artículo</flux:button>
     </div>
     <flux:table :paginate="$this->articles">
     <flux:table.columns>
@@ -111,6 +181,7 @@ new class extends Component
         <flux:table.column sortable :sorted="$sortBy === 'category_id'" :direction="$sortDirection" wire:click="sort('category_id')">Categoría</flux:table.column>
         <flux:table.column sortable :sorted="$sortBy === 'user_id'" :direction="$sortDirection" wire:click="sort('user_id')">Creado por</flux:table.column>
         <flux:table.column sortable :sorted="$sortBy === 'published_at'" :direction="$sortDirection" wire:click="sort('published_at')">Fecha de publicación</flux:table.column>
+        <flux:table.column>Acciones</flux:table.column>
     </flux:table.columns>
 
     <flux:table.rows>
@@ -131,7 +202,10 @@ new class extends Component
 
 
                 <flux:table.cell class="py-0">
-                    <flux:button variant="ghost" size="sm" icon="ellipsis-horizontal"></flux:button>
+                    <div class="flex gap-2">
+                        <flux:button wire:click="editArticle({{ $article->id }})" variant="ghost" size="sm" icon="pencil-square">Editar</flux:button>
+                        <flux:button wire:click="deleteArticle({{ $article->id }})" wire:confirm="¿Eliminar este artículo?" variant="danger" size="sm" icon="trash">Eliminar</flux:button>
+                    </div>
                 </flux:table.cell>
             </flux:table.row>
         @endforeach
@@ -141,9 +215,9 @@ new class extends Component
     <form wire:submit="saveArticle">
                 <div class="space-y-6">
                     <div>
-                        <flux:heading size="lg">Nuevo artículo</flux:heading>
+                        <flux:heading size="lg">{{ $editingArticleId ? 'Editar artículo' : 'Nuevo artículo' }}</flux:heading>
                     </div>
-                    <section class="relative border-0 p-0 bg-transparent"  >
+                    <section class="relative border-0 p-0 bg-transparent">
                         <input
                         x-ref="imageInput"
                         type="file"
@@ -152,15 +226,21 @@ new class extends Component
                         wire:model="image"
                         accept=".jpg,.jpeg,.png,image/jpeg,image/png"
                         style="position: absolute; width: 1px; height: 1px; padding: 0px; margin: -1px; overflow: hidden; clip: rect(0px, 0px, 0px, 0px); white-space: nowrap; border: 0px;">
+
+                        <div
+                            wire:loading.flex
+                            wire:target="image"
+                            class="absolute inset-0 z-20 flex items-center justify-center rounded-lg bg-white/80 dark:bg-zinc-900/80"
+                        >
+                            <div class="flex items-center gap-2 text-sm font-medium">
+                                <flux:icon.loading class="size-5" />
+                                Cargando imagen...
+                            </div>
+                        </div>
                         @if ($image)
                             <div class="max-w-full max-h-[200px] relative">
                                 <div class="absolute right-0 top-0">
-                                    <flux:button wire:click="removeImage" size="sm" icon="x-mark" variant="ghost" inset />
-                                    @error('image')
-                                        <p class="text-sm text-red-500">
-                                            {{ $message }}
-                                        </p>
-                                    @enderror
+                                    <flux:button type="button" wire:click="removeImage" size="sm" icon="x-mark" variant="ghost" inset />
                                 </div>
 
                                 <img
@@ -171,6 +251,11 @@ new class extends Component
                                 >
                             </div>
                         @else
+                        @if ($articleData['featured_image'])
+                            <div class="max-w-full h-[200px] mb-3">
+                                <img src="{{ Storage::url($articleData['featured_image']) }}" alt="Imagen actual" class="object-cover w-full h-[200px] rounded-lg">
+                            </div>
+                        @endif
                         <div
                         @click="$refs.imageInput.click()"
                         class="w-full py-5 p-6 sm:py-10 sm:px-16 flex flex-col items-center justify-center rounded-lg border-dashed border-zinc-200 dark:border-white/10 border-2 bg-zinc-50 dark:bg-white/10 transition-colors in-data-dragging:bg-zinc-100 in-data-dragging:border-zinc-300 dark:in-data-dragging:bg-white/15 dark:in-data-dragging:border-white/20 [[disabled]_&amp;]:opacity-75 [[disabled]_&amp;]:pointer-events-none">
@@ -187,24 +272,57 @@ new class extends Component
                         @endif
 
                     </section>
+
+                    @error('image')
+                        <p class="mt-2 text-sm text-red-600 dark:text-red-400">{{ $message }}</p>
+                    @enderror
+
+                    <div>
                     <flux:input label="Título" wire:model="articleData.title" />
-                    <flux:select placeholder="Categoría"  wire:model="articleData.category_id" placeholder="Selecciona la categoría">
+                        @error('articleData.title')
+                            <p class="mt-1 text-sm text-red-600 dark:text-red-400">{{ $message }}</p>
+                        @enderror
+                    </div>
+
+                    <div>
+                    <flux:select placeholder="Selecciona la categoría" wire:model="articleData.category_id">
                         @forelse ($categories as $category)
                             <flux:select.option :label="$category->name" :value="$category->id"></flux:select.option>
                         @empty
-                            <flux:select.option label="No hay categorías registradas" value=""></flux:select.option>
+                            <flux:select.option label="No hay categorías registradas" value="" />
                         @endforelse
-
                     </flux:select>
-                    <flux:textarea
-                        wire:model="articleData.content"
-                        label="Contendio"
-                        placeholder="Lorem ipsum..."
-                    />
+                        @error('articleData.category_id')
+                            <p class="mt-1 text-sm text-red-600 dark:text-red-400">{{ $message }}</p>
+                        @enderror
+                    </div>
+
+                    <div>
+                        <flux:textarea
+                            wire:model="articleData.content"
+                            label="Contenido"
+                            placeholder="Lorem ipsum..."
+                        />
+                        @error('articleData.content')
+                            <p class="mt-1 text-sm text-red-600 dark:text-red-400">{{ $message }}</p>
+                        @enderror
+                    </div>
+
                     <div class="flex items-center">
                         <flux:switch wire:model.live="isPublished" label="Publicar al crear" />
                         <flux:spacer />
-                        <flux:button type="submit" variant="primary">Guardar</flux:button>
+                        <flux:button
+                            type="submit"
+                            variant="primary"
+                            wire:loading.attr="disabled"
+                            wire:target="image,saveArticle"
+                        >
+                            <span wire:loading.remove wire:target="saveArticle">Guardar</span>
+                            <span wire:loading.flex wire:target="saveArticle" class="items-center gap-2">
+                                <flux:icon.loading class="size-4" />
+                                Guardando...
+                            </span>
+                        </flux:button>
                     </div>
             </div>
     </form>

@@ -12,14 +12,15 @@
 
             <flux:sidebar.nav>
                 <flux:sidebar.group :heading="__('Platform')" class="grid">
-                    <flux:sidebar.item icon="home" :href="route('admin.dashboard')" :current="request()->routeIs('admin.dashboard')" wire:navigate>
+                    <flux:sidebar.item icon="home" :href="auth()->user()->role === \App\Enums\UserRole::ADMIN ? route('admin.dashboard') : route('dashboard')" :current="request()->routeIs('admin.dashboard', 'dashboard')" wire:navigate>
                         {{ __('Dashboard') }}
                     </flux:sidebar.item>
-                    @if (auth()->user()->role->value == 'admin')
-
+                    @if (auth()?->user())
+                        @if (auth()->user()->role === \App\Enums\UserRole::ADMIN)
                         <flux:sidebar.item icon="users" :href="route('admin.users.index')" :current="request()->routeIs('admin.users.*')" wire:navigate>
                             {{ __('Usuarios') }}
                         </flux:sidebar.item>
+                        @endif
                         <flux:sidebar.item
                             icon="document-text"
                             :href="route('admin.articles.index')"
@@ -49,7 +50,7 @@
 
             <flux:spacer />
 
-            <x-desktop-user-menu class="hidden lg:block" :name="auth()->user()->name" />
+            <x-desktop-user-menu class="hidden lg:block" :name="auth()?->user()?->name" />
         </flux:sidebar>
 
         <!-- Mobile User Menu -->
@@ -69,16 +70,16 @@
                         <div class="p-0 text-sm font-normal">
                             <div class="flex items-center gap-2 px-1 py-1.5 text-start text-sm">
                                 <flux:avatar
-                                    :name="auth()->user()->name"
-                                    :initials="auth()->user()->initials()"
+                                    :name="auth()?->user()?->name"
+                                    :initials="auth()?->user()?->initials()"
                                 />
 
                                 <div class="grid flex-1 text-start text-sm leading-tight">
                                     <flux:heading class="truncate">
                                         {{ auth()->user()->name }}
-                                        <flux:badge color="lime">{{ auth()->user()->role }}</flux:badge>
+                                        <flux:badge color="lime">{{ auth()?->user()?->role }}</flux:badge>
                                     </flux:heading>
-                                    <flux:text class="truncate">{{ auth()->user()->email }}</flux:text>
+                                    <flux:text class="truncate">{{ auth()?->user()?->email }}</flux:text>
                                 </div>
                             </div>
                         </div>

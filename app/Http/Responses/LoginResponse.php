@@ -13,7 +13,7 @@ class LoginResponse implements LoginResponseContract
 
         $route = match ($user->role) {
             UserRole::ADMIN => route('admin.dashboard'),
-            UserRole::USER => route('home'),
+            UserRole::USER => route('dashboard'),
         };
 
         return redirect()->to($route);

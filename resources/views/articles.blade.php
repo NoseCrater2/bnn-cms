@@ -1,3 +1,3 @@
-<x-layouts::app :title="__('Articulos')">
+<x-layouts::public :title="__('Artículos')">
     <livewire:user.articles  />
-</x-layouts::app>
+</x-layouts::public>

@@ -43,12 +43,30 @@
             <!-- Remember Me -->
             <flux:checkbox name="remember" :label="__('Remember me')" :checked="old('remember')" />
 
+            @if (config('services.recaptcha.enabled'))
+                <div>
+                    <div
+                        class="g-recaptcha"
+                        data-sitekey="{{ config('services.recaptcha.site_key') }}"
+                        data-theme="dark"
+                    ></div>
+
+                    @error('g-recaptcha-response')
+                        <p class="mt-2 text-sm text-red-600 dark:text-red-400">{{ $message }}</p>
+                    @enderror
+                </div>
+            @endif
+
             <div class="flex items-center justify-end">
                 <flux:button variant="primary" type="submit" class="w-full" data-test="login-button">
                     {{ __('Log in') }}
                 </flux:button>
             </div>
         </form>
+
+        @if (config('services.recaptcha.enabled'))
+            <script src="https://www.google.com/recaptcha/api.js?hl=es" async defer></script>
+        @endif
 
     </div>
 </x-layouts::auth>

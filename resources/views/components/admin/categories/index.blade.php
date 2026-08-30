@@ -6,6 +6,7 @@ use Livewire\Component;
 use Livewire\Attributes\Computed;
 use Illuminate\Support\Str;
 use Flux\Flux;
+use App\Enums\UserRole;
 
 new class extends Component
 {
@@ -13,7 +14,7 @@ new class extends Component
 
     public $sortBy = 'name';
     public $sortDirection = 'desc';
-    public $showUserModal = true;
+    public ?int $editingCategoryId = null;
     public $categoryData = [
         'name' => null,
         'slug' => null,
@@ -28,16 +29,67 @@ new class extends Component
         }
     }
 
-    public function saveCategory() {
-        $this->categoryData['slug'] = Str::slug($this->categoryData['name']);
-        Category::create($this->categoryData);
+    public function createCategory(): void {
+        $this->resetCategoryForm();
+        Flux::modal('category-modal')->show();
+    }
+
+    public function editCategory(int $id): void {
+        $category = Category::findOrFail($id);
+        $this->editingCategoryId = $category->id;
+        $this->categoryData = ['name' => $category->name, 'slug' => $category->slug];
+        $this->resetValidation();
+        Flux::modal('category-modal')->show();
+    }
+
+    public function saveCategory(): void {
+        $this->validate(['categoryData.name' => ['required', 'string', 'max:255']]);
+        $this->categoryData['slug'] = $this->uniqueSlug($this->categoryData['name']);
+        if ($this->editingCategoryId) {
+            Category::findOrFail($this->editingCategoryId)->update($this->categoryData);
+            $message = 'Categoría actualizada correctamente.';
+        } else {
+            Category::create($this->categoryData);
+            $message = 'Categoría creada correctamente.';
+        }
         Flux::modal('category-modal')->close();
+        Flux::toast(variant: 'success', text: $message);
+        $this->resetCategoryForm();
+    }
+
+    public function deleteCategory(int $id): void {
+        abort_unless(auth()->user()->role === UserRole::ADMIN, 403);
+
+        $category = Category::withCount('articles')->findOrFail($id);
+        if ($category->articles_count > 0) {
+            Flux::toast(variant: 'danger', text: 'No puedes eliminar una categoría que contiene artículos.');
+            return;
+        }
+        $category->delete();
+        $this->resetPage();
+        Flux::toast(variant: 'success', text: 'Categoría eliminada correctamente.');
+    }
+
+    private function uniqueSlug(string $name): string {
+        $base = Str::slug($name);
+        $slug = $base;
+        $suffix = 2;
+        while (Category::where('slug', $slug)->when($this->editingCategoryId, fn ($query) => $query->whereKeyNot($this->editingCategoryId))->exists()) {
+            $slug = $base.'-'.$suffix++;
+        }
+        return $slug;
+    }
+
+    private function resetCategoryForm(): void {
+        $this->editingCategoryId = null;
+        $this->categoryData = ['name' => '', 'slug' => ''];
+        $this->resetValidation();
     }
 
     #[Computed]
     public function categories()
     {
-        return Category::query()
+        return Category::query()->withCount('articles')
             ->tap(fn ($query) => $this->sortBy ? $query->orderBy($this->sortBy, $this->sortDirection) : $query)
             ->paginate(5);
     }
@@ -49,15 +101,14 @@ new class extends Component
     <flux:text class="mt-2 mb-6 text-base">Crea y edita usuarios</flux:text>
 
     <div class="flex justify-end gap-4">
-        <flux:modal.trigger name="category-modal">
-            <flux:button>Nueva categoría</flux:button>
-        </flux:modal.trigger>
+        <flux:button wire:click="createCategory">Nueva categoría</flux:button>
     </div>
     <flux:table :paginate="$this->categories">
     <flux:table.columns>
         <flux:table.column sortable :sorted="$sortBy === 'name'" :direction="$sortDirection" wire:click="sort('name')">Categoria</flux:table.column>
         <flux:table.column >Articulos relacionados</flux:table.column>
         <flux:table.column sortable :sorted="$sortBy === 'created_at'" :direction="$sortDirection" wire:click="sort('created_at')">Fecha de creación</flux:table.column>
+        <flux:table.column>Acciones</flux:table.column>
 
     </flux:table.columns>
 
@@ -68,12 +119,17 @@ new class extends Component
                     {{ $category->name }}
                 </flux:table.cell>
                  <flux:table.cell class="py-0">
-                    <flux:badge size="sm">{{ $category->articles->count() }}</flux:badge>
+                    <flux:badge size="sm">{{ $category->articles_count }}</flux:badge>
                 </flux:table.cell>
 
                 <flux:table.cell class="whitespace-nowrap">{{ $category->created_at }}</flux:table.cell>
                 <flux:table.cell class="py-0">
-                    <flux:button variant="ghost" size="sm" icon="ellipsis-horizontal"></flux:button>
+                    <div class="flex gap-2">
+                        <flux:button wire:click="editCategory({{ $category->id }})" variant="ghost" size="sm" icon="pencil-square">Editar</flux:button>
+                        @if (auth()->user()->role === UserRole::ADMIN)
+                            <flux:button wire:click="deleteCategory({{ $category->id }})" wire:confirm="¿Eliminar esta categoría?" variant="danger" size="sm" icon="trash">Eliminar</flux:button>
+                        @endif
+                    </div>
                 </flux:table.cell>
             </flux:table.row>
         @endforeach
@@ -83,7 +139,7 @@ new class extends Component
     <form wire:submit="saveCategory">
         <div class="space-y-6">
             <div>
-                <flux:heading size="lg">Nueva categoría</flux:heading>
+                <flux:heading size="lg">{{ $editingCategoryId ? 'Editar categoría' : 'Nueva categoría' }}</flux:heading>
             </div>
             <flux:input label="Nombre" wire:model="categoryData.name" />
             <div class="flex">

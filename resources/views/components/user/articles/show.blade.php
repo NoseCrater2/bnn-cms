@@ -9,7 +9,10 @@ new class extends Component
     public Article $article;
 
     public function mount()  {
-        $this->article = Article::whereSlug($this->slug)->with('user', 'category')->first();
+        $this->article = Article::whereSlug($this->slug)
+            ->whereNotNull('published_at')
+            ->with('user', 'category')
+            ->firstOrFail();
     }
 
 
@@ -44,7 +47,7 @@ new class extends Component
             <flux:card>
                 <flux:heading size="lg">Categoría <flux:badge color="lime">{{$article->category->name}}</flux:badge></flux:heading>
                 <flux:text class="mt-2 mb-4">
-                    <flux:button href="{{ route('public.articles') }}" variant="ghost">Ver más articulos de la misma categoría</flux:button>
+                    <flux:button href="{{ route('public.articles', ['categoria' => $article->category_id]) }}" variant="ghost">Ver más artículos de la misma categoría</flux:button>
                 </flux:text>
             </flux:card>
         </div>

@@ -27,12 +27,16 @@ use Illuminate\Support\Str;
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
  */
-#[Fillable(['name', 'email', 'password'])]
+#[Fillable(['name', 'email', 'password', 'role', 'email_verified_at'])]
 #[Hidden(['password', 'two_factor_secret', 'two_factor_recovery_codes', 'remember_token'])]
 class User extends Authenticatable
 {
     /** @use HasFactory<UserFactory> */
     use HasFactory, Notifiable;
+
+    protected $attributes = [
+        'role' => 'user',
+    ];
 
     /**
      * Get the attributes that should be cast.
@@ -44,7 +48,7 @@ class User extends Authenticatable
         return [
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
-            'role' => UserRole::class
+            'role' => UserRole::class,
         ];
     }
 
@@ -60,7 +64,8 @@ class User extends Authenticatable
             : $initials;
     }
 
-    public function articles(){
+    public function articles()
+    {
         return $this->hasMany(Article::class);
     }
 }
